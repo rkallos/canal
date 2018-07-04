@@ -5,7 +5,9 @@
   {mod, { canal_app, []}},
   {applications,
    [kernel,
-    stdlib
+    stdlib,
+    buoy,
+    jiffy
    ]},
   {env,[]},
   {modules, []},
