@@ -1,26 +1,40 @@
-%%%-------------------------------------------------------------------
-%% @doc canal public API
-%% @end
-%%%-------------------------------------------------------------------
-
 -module(canal_app).
+-include("canal_internal.hrl").
+
+-export([
+    start/0,
+    stop/0
+]).
 
 -behaviour(application).
+-export([
+    start/2,
+    stop/1
+]).
 
-%% Application callbacks
--export([start/2, stop/1]).
 
-%%====================================================================
-%% API
-%%====================================================================
+%% public
+
+-spec start() -> {ok, [atom()]}.
+
+start() ->
+    application:ensure_all_started(?APP).
+
+
+-spec stop() -> ok | {error, {not_started, ?APP}}.
+
+stop() ->
+    application:stop(?APP).
+
+
+%% callbacks
+
+-spec start(application:start_type(), term()) -> {ok, pid()}.
 
 start(_StartType, _StartArgs) ->
     canal_sup:start_link().
 
-%%--------------------------------------------------------------------
-stop(_State) ->
-    ok.
 
-%%====================================================================
-%% Internal functions
-%%====================================================================
+-spec stop(term()) -> ok.
+
+stop(_State) -> ok.
