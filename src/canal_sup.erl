@@ -1,35 +1,39 @@
-%%%-------------------------------------------------------------------
-%% @doc canal top level supervisor.
-%% @end
-%%%-------------------------------------------------------------------
-
 -module(canal_sup).
 
 -behaviour(supervisor).
 
-%% API
 -export([start_link/0]).
 
-%% Supervisor callbacks
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
 
-%%====================================================================
-%% API functions
-%%====================================================================
+
+%% public
+
+-spec start_link() -> {ok, pid()}.
 
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-%%====================================================================
-%% Supervisor callbacks
-%%====================================================================
 
-%% Child :: {Id,StartFunc,Restart,Shutdown,Type,Modules}
+%% callbacks
+
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+
 init([]) ->
-    {ok, { {one_for_all, 0, 1}, []} }.
-
-%%====================================================================
-%% Internal functions
-%%====================================================================
+    Flags = #{
+      strategy => one_for_one,
+      intensity => 5,
+      period => 10
+    },
+    CanalServer = #{
+      id => canal,
+      modules => [canal],
+      restart => permanent,
+      shutdown => brutal_kill,
+      start => {canal, start_link, []},
+      type => worker
+    },
+    Children = [CanalServer],
+    {ok, {Flags, Children}}.

@@ -1,0 +1,7 @@
+language: erlang
+notifications:
+  email: false
+otp_release:
+  - 21.0
+  - 20.3
+script: "make travis"
