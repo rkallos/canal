@@ -3,15 +3,25 @@
 
 -export([
     error_msg/1,
+    error_msg/2,
     getopt/1,
     info_msg/1,
-    warning_msg/1
+    info_msg/2,
+    warning_msg/1,
+    warning_msg/2
 ]).
 
 
 -spec error_msg(iolist()) -> ok.
 
 error_msg(Msg) ->
+    error_logger:error_report(Msg).
+
+
+-spec error_msg(io:format(), list()) -> ok.
+
+error_msg(Format, Args) ->
+    Msg = io_lib:format(Format, Args),
     error_logger:error_report(Msg).
 
 
@@ -22,13 +32,6 @@ getopt(auth_payload) ->
         os:getenv("VAULT_AUTH_PAYLOAD"),
         ?GET_ENV(auth_payload, false),
         <<"">>
-    ]);
-
-getopt(increment) ->
-    getopt2([
-        os:getenv("CANAL_RENEW_INCREMENT"),
-        ?GET_ENV(renew_increment, false),
-        ?DEFAULT_RENEW_INCREMENT
     ]);
 
 getopt(timeout) ->
@@ -59,10 +62,25 @@ info_msg(Msg) ->
     error_logger:info_report(Msg).
 
 
+-spec info_msg(io:format(), list()) -> ok.
+
+info_msg(Format, Args) ->
+    Msg = io_lib:format(Format, Args),
+    error_logger:info_report(Msg).
+
+
 -spec warning_msg(iolist()) -> ok.
 
 warning_msg(Msg) ->
     error_logger:warning_report(Msg).
+
+
+-spec warning_msg(io:format(), list()) -> ok.
+
+warning_msg(Format, Args) ->
+    Msg = io_lib:format(Format, Args),
+    error_logger:warning_report(Msg).
+
 
 
 %% private
