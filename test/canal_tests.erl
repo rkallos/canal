@@ -12,7 +12,6 @@ canal_test_() ->
     [
         fun auth_subtest/0,
         fun read_subtest/0,
-        fun renew_subtest/0,
         fun write_subtest/0
     ]}.
 
@@ -25,11 +24,6 @@ auth_subtest() ->
 read_subtest() ->
     ok = canal:auth({approle, <<"bob_the_token">>, <<"bob_the_secret">>}),
     {error, {404, []}} = canal:read(<<"foo">>).
-
-
-renew_subtest() ->
-    ok = canal:auth({approle, <<"bob_the_token">>, <<"bob_the_secret">>}),
-    ok = canal:renew().
 
 
 write_subtest() ->
