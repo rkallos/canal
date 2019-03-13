@@ -48,6 +48,9 @@
 -spec auth(auth_method()) -> ok | {error, term()}.
 
 auth(Creds = {approle, _Id, _SecretId}) ->
+    gen_server:call(?MODULE, {auth, Creds});
+
+auth(Creds = {ldap, _Username, _Password}) ->
     gen_server:call(?MODULE, {auth, Creds}).
 
 
@@ -334,7 +337,13 @@ headers(State) ->
 
 make_auth_request({approle, RoleId, SecretId}, State) ->
     Map = #{<<"role_id">> => RoleId, <<"secret_id">> => SecretId},
-    make_auth_request2("approle", Map, State).
+    make_auth_request2("approle", Map, State);
+
+make_auth_request({ldap, Username, Password}, State) ->
+    Map = #{<<"password">> => Password},
+    Url = url(State, ["/v1/auth/ldap/login/", Username]),
+    Body = ?ENCODE(Map),
+    {Url, Body}.
 
 
 -spec make_auth_request2(string(), #{binary() => binary()}, state()) ->

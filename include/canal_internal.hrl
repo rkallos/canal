@@ -14,4 +14,4 @@
 
 -type req_id()  :: shackle:request_id().
 -type req() :: {{pid(), reference()}, write | read}.
--type auth_method() :: {approle, binary(), binary()}.
+-type auth_method() :: {approle | ldap, binary(), binary()}.
