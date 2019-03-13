@@ -414,7 +414,7 @@ update_auth(State, Data, Payload) ->
     ReauthTime = floor(Ttl * 0.9),
     {Megas, Seconds, _Micros} = erlang:timestamp(),
     TimeAtReauth = {Megas, Seconds + ReauthTime, 0},
-    DatetimeAtReauth = calendar:now_to_datetime(TimeAtReauth),
+    DatetimeAtReauth = calendar:now_to_local_time(TimeAtReauth),
     canal_utils:info_msg("canal: will reauth at ~p", [DatetimeAtReauth]),
     {ok, _} = timer:apply_after(timer:seconds(ReauthTime), ?MODULE, reauth, []),
     State#state{auth = NewAuth}.
