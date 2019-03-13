@@ -48,6 +48,9 @@
 -spec auth(auth_method()) -> ok | {error, term()}.
 
 auth(Creds = {approle, _Id, _SecretId}) ->
+    gen_server:call(?MODULE, {auth, Creds});
+
+auth(Creds = {ldap, _Username, _Password}) ->
     gen_server:call(?MODULE, {auth, Creds}).
 
 
@@ -93,7 +96,7 @@ handle_call({auth, Creds}, _From, State) ->
         {ok, Data} ->
             {reply, ok, update_auth(State, Data, Payload)};
         Err = {error, _} ->
-            canal_utils:error_msg("Auth failed with ~p", [Err]),
+            canal_utils:error_msg("canal: auth failed with ~p", [Err]),
             {reply, Err, State}
     end;
 
@@ -130,7 +133,7 @@ handle_cast(reauth, State = #state{auth = #auth{payload = Payload}}) ->
         {ok, Data} ->
             update_auth(State, Data, Payload);
         Err = {error, _} ->
-            canal_utils:error_msg("Auth failed with ~p", [Err]),
+            canal_utils:error_msg("canal: auth failed with ~p", [Err]),
             State
     end,
     {noreply, State2};
@@ -166,7 +169,7 @@ handle_info({token, Token}, State) ->
         {ok, State2} ->
             {noreply, State2};
         Err = {error, _} ->
-            Fmt = "Token lookup failed with ~p",
+            Fmt = "canal: token lookup failed with ~p",
             Msg = io_lib:format(Fmt, [Err]),
             canal_utils:error_msg(Msg),
             {stop, {error, token_auth_failed}, State}
@@ -281,7 +284,7 @@ do_lookup2(Token, Body, State) ->
                 token = Token,
                 ttl = Ttl
             },
-            Msg = "Token found. Disabling reauthentication.",
+            Msg = "canal: token found. Disabling reauthentication.",
             canal_utils:info_msg(Msg),
             {ok, State#state{auth = Auth2}};
         #{<<"errors">> := Errors} ->
@@ -334,7 +337,13 @@ headers(State) ->
 
 make_auth_request({approle, RoleId, SecretId}, State) ->
     Map = #{<<"role_id">> => RoleId, <<"secret_id">> => SecretId},
-    make_auth_request2("approle", Map, State).
+    make_auth_request2("approle", Map, State);
+
+make_auth_request({ldap, Username, Password}, State) ->
+    Map = #{<<"password">> => Password},
+    Url = url(State, ["/v1/auth/ldap/login/", Username]),
+    Body = ?ENCODE(Map),
+    {Url, Body}.
 
 
 -spec make_auth_request2(string(), #{binary() => binary()}, state()) ->
@@ -403,7 +412,11 @@ update_auth(State, Data, Payload) ->
         ttl = Ttl
     },
     ReauthTime = floor(Ttl * 0.9),
-    {ok, _} = timer:apply_after(ReauthTime, ?MODULE, reauth, []),
+    {Megas, Seconds, _Micros} = erlang:timestamp(),
+    TimeAtReauth = {Megas, Seconds + ReauthTime, 0},
+    DatetimeAtReauth = calendar:now_to_datetime(TimeAtReauth),
+    canal_utils:info_msg("canal: will reauth at ~p", [DatetimeAtReauth]),
+    {ok, _} = timer:apply_after(timer:seconds(ReauthTime), ?MODULE, reauth, []),
     State#state{auth = NewAuth}.
 
 
