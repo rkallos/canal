@@ -12,17 +12,17 @@
 ]).
 
 
--spec error_msg(iolist()) -> ok.
+-spec error_msg(io:format()) -> ok.
 
 error_msg(Msg) ->
-    error_logger:error_report(Msg).
+    error_logger:error_msg(Msg).
 
 
 -spec error_msg(io:format(), list()) -> ok.
 
 error_msg(Format, Args) ->
     Msg = io_lib:format(Format, Args),
-    error_logger:error_report(Msg).
+    error_logger:error_msg(Msg).
 
 
 -spec getopt(atom()) -> term().
@@ -56,31 +56,30 @@ getopt(url) ->
     ])).
 
 
--spec info_msg(iolist()) -> ok.
+-spec info_msg(io:format()) -> ok.
 
 info_msg(Msg) ->
-    error_logger:info_report(Msg).
+    error_logger:info_msg(Msg).
 
 
 -spec info_msg(io:format(), list()) -> ok.
 
 info_msg(Format, Args) ->
     Msg = io_lib:format(Format, Args),
-    error_logger:info_report(Msg).
+    error_logger:info_msg(Msg).
 
 
--spec warning_msg(iolist()) -> ok.
+-spec warning_msg(io:format()) -> ok.
 
 warning_msg(Msg) ->
-    error_logger:warning_report(Msg).
+    error_logger:warning_msg(Msg).
 
 
 -spec warning_msg(io:format(), list()) -> ok.
 
 warning_msg(Format, Args) ->
     Msg = io_lib:format(Format, Args),
-    error_logger:warning_report(Msg).
-
+    error_logger:warning_msg(Msg).
 
 
 %% private

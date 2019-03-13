@@ -96,7 +96,7 @@ handle_call({auth, Creds}, _From, State) ->
         {ok, Data} ->
             {reply, ok, update_auth(State, Data, Payload)};
         Err = {error, _} ->
-            canal_utils:error_msg("Auth failed with ~p", [Err]),
+            canal_utils:error_msg("canal: auth failed with ~p", [Err]),
             {reply, Err, State}
     end;
 
@@ -133,7 +133,7 @@ handle_cast(reauth, State = #state{auth = #auth{payload = Payload}}) ->
         {ok, Data} ->
             update_auth(State, Data, Payload);
         Err = {error, _} ->
-            canal_utils:error_msg("Auth failed with ~p", [Err]),
+            canal_utils:error_msg("canal: auth failed with ~p", [Err]),
             State
     end,
     {noreply, State2};
@@ -169,7 +169,7 @@ handle_info({token, Token}, State) ->
         {ok, State2} ->
             {noreply, State2};
         Err = {error, _} ->
-            Fmt = "Token lookup failed with ~p",
+            Fmt = "canal: token lookup failed with ~p",
             Msg = io_lib:format(Fmt, [Err]),
             canal_utils:error_msg(Msg),
             {stop, {error, token_auth_failed}, State}
@@ -284,7 +284,7 @@ do_lookup2(Token, Body, State) ->
                 token = Token,
                 ttl = Ttl
             },
-            Msg = "Token found. Disabling reauthentication.",
+            Msg = "canal: token found. Disabling reauthentication.",
             canal_utils:info_msg(Msg),
             {ok, State#state{auth = Auth2}};
         #{<<"errors">> := Errors} ->
