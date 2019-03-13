@@ -5,9 +5,8 @@
 
 -export([
     auth/1,
-    check_renew/0,
     read/1,
-    renew/0,
+    reauth/0,
     write/2
 ]).
 
@@ -27,7 +26,6 @@
 
 -record(auth, {
     payload   = undefined          :: {buoy_url(), binary()} | undefined,
-    renewable = true               :: boolean(),
     timestamp = erlang:timestamp() :: erlang:timestamp(),
     token     = undefined          :: binary() | undefined,
     ttl       = undefined          :: non_neg_integer() | undefined
@@ -37,9 +35,6 @@
 
 -record(state, {
     auth            = undefined                   :: auth() | undefined,
-    renew_increment = undefined                   :: non_neg_integer(),
-    renew_predicate = {fun canal_renew:default/3, 10000}
-        :: {renew_pred(), term()},
     request_timeout = undefined                   :: non_neg_integer(),
     requests        = #{}                         :: #{req_id() => req()},
     url             = undefined                   :: binary()
@@ -56,22 +51,16 @@ auth(Creds = {approle, _Id, _SecretId}) ->
     gen_server:call(?MODULE, {auth, Creds}).
 
 
--spec check_renew() -> ok.
-
-check_renew() ->
-    gen_server:cast(?MODULE, check_renew).
-
-
 -spec read(binary()) -> {ok, term()} | {error, term()}.
 
 read(Key) ->
     gen_server:call(?MODULE, {read, Key}).
 
 
--spec renew() -> ok.
+-spec reauth() -> ok.
 
-renew() ->
-    gen_server:cast(?MODULE, renew).
+reauth() ->
+    gen_server:cast(?MODULE, reauth).
 
 
 -spec start_link() -> {ok, pid()}.
@@ -104,6 +93,7 @@ handle_call({auth, Creds}, _From, State) ->
         {ok, Data} ->
             {reply, ok, update_auth(State, Data, Payload)};
         Err = {error, _} ->
+            canal_utils:error_msg("Auth failed with ~p", [Err]),
             {reply, Err, State}
     end;
 
@@ -135,41 +125,15 @@ handle_call({write, Key, Body}, From, State) ->
 
 -spec handle_cast(_, state()) -> {noreply, state()}.
 
-handle_cast(check_renew, State) ->
-    {Action, State2} = renew_predicate(State),
-    State3 = case Action of
-        no_action ->
-            State2;
-        renew ->
-            renew(),
-            State2;
-        reauth ->
-            case do_auth(State2) of
-                {ok, Data} ->
-                    update_auth(State2, Data);
-                Err = {error, _} ->
-                    Format = "Reauth request failed with ~p",
-                    Msg = io_lib:format(Format, [Err]),
-                    canal_utils:error_msg(Msg),
-                    State2
-            end
+handle_cast(reauth, State = #state{auth = #auth{payload = Payload}}) ->
+    State2 = case do_auth(Payload, State) of
+        {ok, Data} ->
+            update_auth(State, Data, Payload);
+        Err = {error, _} ->
+            canal_utils:error_msg("Auth failed with ~p", [Err]),
+            State
     end,
-    {noreply, State3};
-
-handle_cast(renew, State = #state{renew_increment = Increment}) ->
-    Url = url(State, ["/v1/auth/token/renew-self"]),
-    Body = ?ENCODE(#{
-        increment => Increment
-    }),
-    Opts = #{
-        body => Body,
-        headers => headers(State),
-        pid => self(),
-        timeout => req_timeout(State)
-    },
-    {ok, ReqId} = buoy:async_post(Url, Opts),
-
-    {noreply, add_request(ReqId, renew, State)};
+    {noreply, State2};
 
 handle_cast(_Req, State) ->
     {noreply, State}.
@@ -182,11 +146,8 @@ handle_info({#cast{request_id = RequestId}, Error = {error, _}}, State) ->
         {read, From} ->
             gen_server:reply(From, Error);
         {write, From} ->
-            gen_server:reply(From, Error);
-        {renew, _} ->
-            ok
+            gen_server:reply(From, Error)
     end,
-
     {noreply, del_request(RequestId, State)};
 
 handle_info(Response = {#cast{request_id = RequestId}, {ok, _}}, State) ->
@@ -195,8 +156,6 @@ handle_info(Response = {#cast{request_id = RequestId}, {ok, _}}, State) ->
             handle_read_response(Response, State);
         write ->
             handle_write_response(Response, State);
-        renew ->
-            handle_renew_response(Response, State);
         _ ->
             {noreply, del_request(RequestId, State)}
     end;
@@ -222,7 +181,6 @@ handle_info(_Req, State) ->
 init(_) ->
     Url = ?GET_OPT(url),
     Timeout = ?GET_OPT(timeout),
-    Increment = ?GET_OPT(increment),
 
     case ?GET_OPT(token) of
         undefined ->
@@ -237,7 +195,6 @@ init(_) ->
 
     State = #state{
         url = Url,
-        renew_increment = Increment,
         request_timeout = Timeout
     },
 
@@ -245,7 +202,6 @@ init(_) ->
 
 
 -spec terminate(term(), state()) -> ok.
-
 terminate(_Reason, #state{url = Url}) ->
     buoy_pool:stop(buoy_utils:parse_url(Url)),
     ok.
@@ -267,9 +223,6 @@ del_request(ReqId, State = #state{requests = Requests}) ->
 
 
 do_auth({Url, Body}, State) ->
-    do_auth2(Url, Body, req_timeout(State)).
-
-do_auth(State = #state{auth = #auth{payload = {Url, Body}}}) ->
     do_auth2(Url, Body, req_timeout(State)).
 
 
@@ -322,21 +275,15 @@ do_lookup2(Token, Body, State) ->
     case ?DECODE(Body) of
         #{<<"data">> := Data} ->
             #{
-                <<"renewable">> := Renewable,
                 <<"ttl">> := Ttl
             } = Data,
             Auth2 = #auth{
-                renewable = Renewable,
                 token = Token,
                 ttl = Ttl
             },
             Msg = "Token found. Disabling reauthentication.",
             canal_utils:info_msg(Msg),
-            Timeout = erlang:floor(Ttl * 0.9),
-            {ok, State#state{
-                auth = Auth2,
-                renew_predicate = {fun canal_renew:no_reauth/3, Timeout}
-            }};
+            {ok, State#state{auth = Auth2}};
         #{<<"errors">> := Errors} ->
             {error, Errors}
     end.
@@ -357,25 +304,6 @@ handle_read_response(
     State2 = del_request(RequestId, State),
     gen_server:reply(From, Ret),
     {noreply, State2}.
-
-
-handle_renew_response({#cast{request_id = RequestId}, Reply},
-    State = #state{requests = Requests}) ->
-
-    #{RequestId := renew} = Requests,
-    case Reply of
-        {ok, #buoy_resp{body = Body, status_code = 200}} ->
-            Body2 = ?DECODE(Body),
-            #{<<"auth">> := Data} = Body2,
-            {noreply, renew_auth(State, Data)};
-        {ok, #buoy_resp{body = Body, status_code = StatusCode}} ->
-            #{<<"errors">> := Errors} = ?DECODE(Body),
-            Err = {error, {StatusCode, Errors}},
-            Format = "Renew request failed with ~p",
-            Msg = io_lib:format(Format, [Err]),
-            canal_utils:warning_msg(Msg),
-            {noreply, State}
-    end.
 
 
 handle_write_response({#cast{request_id = RequestId}, Response}, State) ->
@@ -418,47 +346,6 @@ make_auth_request2(AuthMethod, Map, State) ->
     {Url, Body}.
 
 
--spec renew_auth(state(), map()) -> state().
-
-renew_auth(State = #state{auth = Auth}, Data) ->
-    #{
-        <<"client_token">> := Token,
-        <<"lease_duration">> := Ttl,
-        <<"renewable">> := Renewable
-    } = Data,
-    NewAuth = Auth#auth{
-        renewable = Renewable,
-        timestamp = erlang:timestamp(),
-        token = Token,
-        ttl = Ttl
-    },
-    State#state{auth = NewAuth}.
-
-
--spec renew_predicate(state()) -> {renew_action(), state()}.
-
-renew_predicate(State = #state{
-        auth = #auth{
-            timestamp = Timestamp,
-            ttl = Ttl
-        },
-        renew_predicate = {Fun, FunState}
-    }) ->
-
-    {Action, FunState2} = Fun(Ttl, Timestamp, FunState),
-
-    case FunState2 of
-        Num when is_integer(Num) andalso Num > 0 ->
-            timer:apply_after(Num, ?MODULE, check_renew, []);
-        _ -> ok
-    end,
-
-    {Action, State#state{renew_predicate = {Fun, FunState2}}};
-
-renew_predicate(State = #state{auth = _}) ->
-    {reauth, State}.
-
-
 -spec req_origin(req_id(), state()) -> {pid(), reference()} | undefined.
 
 req_origin(RequestId, #state{requests = Requests}) ->
@@ -476,14 +363,12 @@ req_timeout(#state{request_timeout = Timeout}) ->
     Timeout.
 
 
--spec req_type(req_id(), state()) -> lookup | read | renew | write | undefined.
+-spec req_type(req_id(), state()) -> lookup | read | write | undefined.
 
 req_type(RequestId, #state{requests = Requests}) ->
     case Requests of
         #{RequestId := {_, Type}} ->
             Type;
-        #{RequestId := renew} ->
-            renew;
         #{RequestId := _} ->
             undefined;
         _ ->
@@ -503,28 +388,22 @@ token(#state{auth = #auth{token = Token}}) ->
     {ok, Token}.
 
 
--spec update_auth(state(), map()) -> state().
-
-update_auth(State = #state{auth = #auth{payload = Payload}}, Data) ->
-    update_auth(State, Data, Payload).
-
-
 -spec update_auth(state(), map(), {buoy_url(), binary()} | undefined) ->
     state().
 
 update_auth(State, Data, Payload) ->
     #{
         <<"client_token">> := Token,
-        <<"lease_duration">> := Ttl,
-        <<"renewable">> := Renewable
+        <<"lease_duration">> := Ttl
     } = Data,
     NewAuth = #auth{
         payload = Payload,
-        renewable = Renewable,
         timestamp = erlang:timestamp(),
         token = Token,
         ttl = Ttl
     },
+    ReauthTime = floor(Ttl * 0.9),
+    {ok, _} = timer:apply_after(ReauthTime, ?MODULE, reauth, []),
     State#state{auth = NewAuth}.
 
 

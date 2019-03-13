@@ -36,9 +36,7 @@ init(Req, State) ->
             Split = binary:split(Path, <<"/">>, [global]),
             case lists:last(Split) of
                 <<"login">> ->
-                    handle_auth_req(Req, State);
-                <<"renew-self">> ->
-                    handle_renew_req(Req, State)
+                    handle_auth_req(Req, State)
             end;
         {<<"GET">>, <<"secret">>} ->
             handle_read_req(Req, State);
@@ -52,8 +50,7 @@ init(Req, State) ->
 handle_auth_req(Req, State) ->
     Body = ?ENCODE(#{auth => #{
         client_token => <<"bob_the_client_token">>,
-        lease_duration => 600,
-        renewable => true
+        lease_duration => 600
     }}),
     reply(200, Body, Req, State).
 
@@ -67,17 +64,6 @@ handle_read_req(Req, State) ->
         [{_, Val}] ->
             reply(200, ?ENCODE(#{data => Val}), Req, State)
     end.
-
-
-handle_renew_req(Req, State) ->
-    {ok, Data, Req2} = read_body(Req, <<"">>),
-    #{<<"increment">> := Increment} = ?DECODE(Data),
-    Body = ?ENCODE(#{auth => #{
-        client_token => <<"bob_the_client_token">>,
-        lease_duration => Increment,
-        renewable => true
-    }}),
-    reply(200, Body, Req2, State).
 
 
 handle_write_req(Req, State) ->

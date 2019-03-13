@@ -13,8 +13,5 @@
 % types
 
 -type req_id()  :: shackle:request_id().
--type req() :: {{pid(), reference()}, write | read} | renew.
+-type req() :: {{pid(), reference()}, write | read}.
 -type auth_method() :: {approle, binary(), binary()}.
--type renew_action() :: no_action | renew | reauth.
--type renew_pred() :: fun((non_neg_integer(), erlang:timestamp(), term()) ->
-    {renew_action(), term()}).
