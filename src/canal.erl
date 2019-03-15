@@ -388,7 +388,7 @@ req_type(RequestId, #state{requests = Requests}) ->
 -spec token(state()) -> {ok, binary()} | undefined.
 
 token(#state{auth = undefined}) ->
-    undefine;
+    undefined;
 
 token(#state{auth = #auth{token = undefined}}) ->
     undefined;
