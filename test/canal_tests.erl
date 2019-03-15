@@ -18,7 +18,9 @@ canal_test_() ->
 %% tests
 
 auth_subtest() ->
-    ok = canal:auth({approle, <<"bob_the_token">>, <<"bob_the_secret">>}).
+    Creds = {approle, <<"bob_the_token">>, <<"bob_the_secret">>},
+    ok = canal:auth(Creds),
+    Creds = ?GET_OPT(credentials).
 
 
 read_subtest() ->

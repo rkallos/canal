@@ -27,12 +27,8 @@ error_msg(Format, Args) ->
 
 -spec getopt(atom()) -> term().
 
-getopt(auth_payload) ->
-    getopt2([
-        os:getenv("VAULT_AUTH_PAYLOAD"),
-        ?GET_ENV(auth_payload, false),
-        <<"">>
-    ]);
+getopt(credentials) ->
+    ?GET_ENV(credentials, undefined);
 
 getopt(timeout) ->
     getopt2([
