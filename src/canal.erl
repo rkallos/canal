@@ -48,9 +48,11 @@
 -spec auth(auth_method()) -> ok | {error, term()}.
 
 auth(Creds = {approle, _Id, _SecretId}) ->
+    application:set_env(?APP, credentials, Creds, [{persistent, true}]),
     gen_server:call(?MODULE, {auth, Creds});
 
 auth(Creds = {ldap, _Username, _Password}) ->
+    application:set_env(?APP, credentials, Creds, [{persistent, true}]),
     gen_server:call(?MODULE, {auth, Creds}).
 
 
@@ -128,6 +130,10 @@ handle_call({write, Key, Body}, From, State) ->
 
 -spec handle_cast(_, state()) -> {noreply, state()}.
 
+handle_cast(reauth, State = #state{auth = #auth{token = Token}})
+    when Token =/= undefined ->
+    {noreply, State};
+
 handle_cast(reauth, State = #state{auth = #auth{payload = Payload}}) ->
     State2 = case do_auth(Payload, State) of
         {ok, Data} ->
@@ -137,6 +143,24 @@ handle_cast(reauth, State = #state{auth = #auth{payload = Payload}}) ->
             State
     end,
     {noreply, State2};
+
+handle_cast(reauth, State = #state{auth = undefined}) ->
+    case ?GET_OPT(credentials) of
+        undefined ->
+            Msg = "canal: not authenticated, and no credentials stored",
+            canal_utils:error_msg(Msg),
+            {stop, {error, no_credentials}, State};
+        Creds ->
+            canal_utils:info_msg("canal: auth using credentials in env"),
+            Payload = make_auth_request(Creds, State),
+            case do_auth(Payload, State) of
+                {ok, Data} ->
+                    {noreply, update_auth(State, Data, Payload)};
+                Err = {error, _} ->
+                    canal_utils:error_msg("canal: auth failed with ~p", [Err]),
+                    {stop, Err, State}
+            end
+    end;
 
 handle_cast(_Req, State) ->
     {noreply, State}.
@@ -190,6 +214,13 @@ init(_) ->
             ok;
         Token ->
             self() ! {token, Token}
+    end,
+
+    case ?GET_OPT(credentials) of
+        undefined ->
+            ok;
+        _Creds ->
+            gen_server:cast(self(), reauth())
     end,
 
     Options = [{pool_size, 1}],
