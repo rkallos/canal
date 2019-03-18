@@ -130,8 +130,9 @@ handle_call({write, Key, Body}, From, State) ->
 
 -spec handle_cast(_, state()) -> {noreply, state()}.
 
-handle_cast(reauth, State = #state{auth = #auth{token = Token}})
-    when Token =/= undefined ->
+% payload = undefined disambiguates a #auth{} from a passed-in token from canal
+% doing its own auth
+handle_cast(reauth, State = #state{auth = #auth{payload = undefined}}) ->
     {noreply, State};
 
 handle_cast(reauth, State = #state{auth = #auth{payload = Payload}}) ->
