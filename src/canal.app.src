@@ -6,8 +6,9 @@
   {applications,
    [kernel,
     stdlib,
-    buoy,
-    jiffy
+    inets,
+    jiffy,
+    ssl
    ]},
   {env,[]},
   {modules, []},

@@ -1,6 +1,4 @@
 -module(canal).
--include_lib("shackle/include/shackle.hrl").
--include_lib("buoy/include/buoy.hrl").
 -include("canal_internal.hrl").
 
 -export([
@@ -25,7 +23,7 @@
 ]).
 
 -record(auth, {
-    payload   = undefined          :: {buoy_url(), binary()} | undefined,
+    payload   = undefined          :: {string(), binary()} | undefined,
     timestamp = erlang:timestamp() :: erlang:timestamp(),
     token     = undefined          :: binary() | undefined,
     ttl       = undefined          :: non_neg_integer() | undefined
@@ -41,6 +39,8 @@
 }).
 
 -type state() :: #state{}.
+
+-define(JSON, "application/json").
 
 
 %% API
@@ -106,24 +106,20 @@ handle_call({auth, Creds}, _From, State) ->
 handle_call({read, Key}, From, State) ->
     Headers = headers(State),
     Url = url(State, ["/v1/secret/", Key]),
-    Opts = #{
-        headers => Headers,
-        pid => self(),
-        timeout => req_timeout(State)
-    },
-    {ok, ReqId} = buoy:async_get(Url, Opts),
+    {Opts, HttpOpts} = opts(async, req_timeout(State)),
+
+    Request = {Url, Headers},
+    {ok, ReqId} = httpc:request(get, Request, HttpOpts, Opts),
 
     {noreply, add_request(ReqId, {From, read}, State)};
 
 handle_call({write, Key, Body}, From, State) ->
+    Headers = headers(State),
     Url = url(State, ["/v1/secret/", Key]),
-    Opts = #{
-        body => Body,
-        headers => headers(State),
-        pid => self(),
-        timeout => req_timeout(State)
-    },
-    {ok, ReqId} = buoy:async_post(Url, Opts),
+    {Opts, HttpOpts} = opts(async, req_timeout(State)),
+
+    Request = {Url, Headers, ?JSON, Body},
+    {ok, ReqId} = httpc:request(post, Request, HttpOpts, Opts),
 
     {noreply, add_request(ReqId, {From, write}, State)}.
 
@@ -169,16 +165,7 @@ handle_cast(_Req, State) ->
 
 -spec handle_info(_, state()) -> {noreply, state()}.
 
-handle_info({#cast{request_id = RequestId}, Error = {error, _}}, State) ->
-    case {req_type(RequestId, State), req_origin(RequestId, State)} of
-        {read, From} ->
-            gen_server:reply(From, Error);
-        {write, From} ->
-            gen_server:reply(From, Error)
-    end,
-    {noreply, del_request(RequestId, State)};
-
-handle_info(Response = {#cast{request_id = RequestId}, {ok, _}}, State) ->
+handle_info({http, Response = {RequestId, _}}, State) ->
     case req_type(RequestId, State) of
         read ->
             handle_read_response(Response, State);
@@ -224,10 +211,6 @@ init(_) ->
             gen_server:cast(self(), reauth())
     end,
 
-    Options = [{pool_size, 1}],
-
-    ok = buoy_pool:start(buoy_utils:parse_url(Url), Options),
-
     State = #state{
         url = Url,
         request_timeout = Timeout
@@ -237,8 +220,7 @@ init(_) ->
 
 
 -spec terminate(term(), state()) -> ok.
-terminate(_Reason, #state{url = Url}) ->
-    buoy_pool:stop(buoy_utils:parse_url(Url)),
+terminate(_Reason, _State) ->
     ok.
 
 
@@ -262,13 +244,11 @@ do_auth({Url, Body}, State) ->
 
 
 do_auth2(Url, Body, Timeout) ->
-    Opts = #{
-        body => Body,
-        headers => [],
-        timeout => Timeout
-    },
-    {ok, #buoy_resp{body = RespBody, status_code = StatusCode}} =
-        buoy:post(Url, Opts),
+    {Opts, HttpOpts} = opts(sync, Timeout),
+
+    Request = {Url, [], ?JSON, Body},
+    {ok, {{_NewVersion, StatusCode, _Status}, _RespHeaders, RespBody}} =
+        httpc:request(post, Request, HttpOpts, Opts),
 
     case do_auth3(RespBody) of
         {ok, Auth} ->
@@ -289,14 +269,12 @@ do_auth3(Body) ->
 
 do_lookup(Token, State) ->
     Url = url(State, ["/v1/auth/token/lookup-self"]),
-    Opts = #{
-        body => [],
-        headers => [{"X-Vault-Token", Token}],
-        pid => self(),
-        timeout => req_timeout(State)
-    },
-    {ok, #buoy_resp{body = RespBody, status_code = StatusCode}} =
-        buoy:get(Url, Opts),
+    Headers = [{"X-Vault-Token", Token}],
+    {Opts, HttpOpts} = opts(sync, req_timeout(State)),
+
+    Request = {Url, Headers},
+    {ok, {{_NewVersion, StatusCode, _Status}, _RespHeaders, RespBody}} =
+        httpc:request(get, Request, HttpOpts, Opts),
 
     case do_lookup2(Token, RespBody, State) of
         {ok, State2} ->
@@ -325,8 +303,7 @@ do_lookup2(Token, Body, State) ->
 
 
 handle_read_response(
-    {#cast{request_id = RequestId},
-    {ok, #buoy_resp{body = Reply, status_code = StatusCode}}},
+    {RequestId, {{_, StatusCode, _}, _, Reply}},
     State = #state{requests = Requests}) ->
 
     #{RequestId := {From, read}} = Requests,
@@ -336,18 +313,16 @@ handle_read_response(
         #{<<"errors">> := Err} -> {error, {StatusCode, Err}}
     end,
 
-    State2 = del_request(RequestId, State),
     gen_server:reply(From, Ret),
-    {noreply, State2}.
+    {noreply, del_request(RequestId, State)}.
 
 
-handle_write_response({#cast{request_id = RequestId}, Response}, State) ->
-
+handle_write_response({RequestId, Response}, State) ->
     From = req_origin(RequestId, State),
     Reply = case Response of
-        {ok, #buoy_resp{status_code = 204}} ->
+        {{_, 204, _}, _, _} ->
             ok;
-        {ok, #buoy_resp{body = Body, status_code = StatusCode}} ->
+        {{_, StatusCode, _}, _, Body} ->
             case ?DECODE(Body) of
                 #{<<"errors">> := Errors} ->
                     {error, {StatusCode, Errors}};
@@ -361,11 +336,15 @@ handle_write_response({#cast{request_id = RequestId}, Response}, State) ->
 
 
 headers(State) ->
-    {ok, Token} = token(State),
-    [{"X-Vault-Token", Token}].
+    case token(State) of
+        {ok, Token} ->
+            [{"X-Vault-Token", binary_to_list(Token)}];
+        _ ->
+            []
+    end.
 
 
--spec make_auth_request(auth_method(), state()) -> {buoy_url(), binary()}.
+-spec make_auth_request(auth_method(), state()) -> {string(), binary()}.
 
 make_auth_request({approle, RoleId, SecretId}, State) ->
     Map = #{<<"role_id">> => RoleId, <<"secret_id">> => SecretId},
@@ -379,12 +358,24 @@ make_auth_request({ldap, Username, Password}, State) ->
 
 
 -spec make_auth_request2(string(), #{binary() => binary()}, state()) ->
-    {buoy_url(), binary()}.
+    {string(), binary()}.
 
 make_auth_request2(AuthMethod, Map, State) ->
     Url = url(State, ["/v1/auth/", AuthMethod, "/login"]),
     Body = ?ENCODE(Map),
     {Url, Body}.
+
+
+-spec opts(sync | async, integer() | atom()) -> {list(), list()}.
+
+opts(Sync, Timeout) ->
+    Sync2 = case Sync of
+        sync -> true;
+        async -> false
+    end,
+    HttpOpts = [{timeout, Timeout}],
+    Opts = [{body_format, binary}, {sync, Sync2}],
+    {Opts, HttpOpts}.
 
 
 -spec req_origin(req_id(), state()) -> {pid(), reference()} | undefined.
@@ -429,7 +420,7 @@ token(#state{auth = #auth{token = Token}}) ->
     {ok, Token}.
 
 
--spec update_auth(state(), map(), {buoy_url(), binary()} | undefined) ->
+-spec update_auth(state(), map(), {string(), binary()} | undefined) ->
     state().
 
 update_auth(State, Data, Payload) ->
@@ -452,7 +443,7 @@ update_auth(State, Data, Payload) ->
     State#state{auth = NewAuth}.
 
 
--spec url(state(), iolist()) -> buoy_url().
+-spec url(state(), iolist()) -> string().
 
 url(#state{url = BaseUrl}, IOList) ->
-    buoy_utils:parse_url(iolist_to_binary([BaseUrl | IOList])).
+    binary_to_list(iolist_to_binary([BaseUrl | IOList])).
