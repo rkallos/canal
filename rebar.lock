@@ -1,24 +1,4 @@
-{"1.1.0",
-[{<<"buoy">>,
-  {git,"https://github.com/lpgauth/buoy.git",
-       {ref,"720290a7799d5c8a6d926ef2543f9112bbe80787"}},
-  0},
- {<<"foil">>,
-  {git,"https://github.com/lpgauth/foil.git",
-       {ref,"b55c30ff8b21daf89a85d1565d4b836c7f9e549b"}},
-  1},
- {<<"granderl">>,{pkg,<<"granderl">>,<<"0.1.5">>},2},
- {<<"jiffy">>,
+[{<<"jiffy">>,
   {git,"https://github.com/davisp/jiffy.git",
        {ref,"c942525130ff0271bd318715406f234c0dc9bc5a"}},
-  0},
- {<<"metal">>,{pkg,<<"metal">>,<<"0.1.1">>},2},
- {<<"shackle">>,
-  {git,"https://github.com/lpgauth/shackle.git",
-       {ref,"9106af7a01883f0160d3235662fa6c712f4ce326"}},
-  1}]}.
-[
-{pkg_hash,[
- {<<"granderl">>, <<"F20077A68BD80B8D8783BD15A052813C6483771DEC1A5B837D307CBE92F14122">>},
- {<<"metal">>, <<"5D3D1322DA7BCD34B94FED5486F577973685298883954F7A3E517EF5EF6953F5">>}]}
-].
+  0}].
