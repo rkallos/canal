@@ -201,7 +201,7 @@ init(_) ->
         undefined ->
             ok;
         Token ->
-            self() ! {token, Token}
+            self() ! {token, iolist_to_binary(Token)}
     end,
 
     case ?GET_OPT(credentials) of
@@ -269,7 +269,7 @@ do_auth3(Body) ->
 
 do_lookup(Token, State) ->
     Url = url(State, ["/v1/auth/token/lookup-self"]),
-    Headers = [{"X-Vault-Token", Token}],
+    Headers = [{"X-Vault-Token", binary_to_list(Token)}],
     {Opts, HttpOpts} = opts(sync, req_timeout(State)),
 
     Request = {Url, Headers},
