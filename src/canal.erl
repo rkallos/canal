@@ -357,7 +357,7 @@ make_auth_request({ldap, Username, Password}, State) ->
     {Url, Body}.
 
 
--spec make_auth_request2(string(), #{binary() => binary()}, state()) ->
+-spec make_auth_request2(iolist(), #{binary() => binary()}, state()) ->
     {string(), binary()}.
 
 make_auth_request2(AuthMethod, Map, State) ->
