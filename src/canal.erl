@@ -429,7 +429,9 @@ update_auth(State, Data, Payload) ->
         token = Token,
         ttl = Ttl
     },
-    ReauthTime = floor(Ttl * 0.9),
+    ReauthTime = case floor(Ttl * 0.9) of
+        N when N >= 0 -> N
+    end,
     {Megas, Seconds, _Micros} = erlang:timestamp(),
     TimeAtReauth = {Megas, Seconds + ReauthTime, 0},
     DatetimeAtReauth = calendar:now_to_local_time(TimeAtReauth),
