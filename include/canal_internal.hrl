@@ -12,6 +12,6 @@
 
 % types
 
--type req_id()  :: shackle:request_id().
+-type req_id()  :: httpc:request_id().
 -type req() :: {{pid(), reference()}, write | read}.
 -type auth_method() :: {approle | ldap, binary(), binary()}.
