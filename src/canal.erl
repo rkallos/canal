@@ -416,7 +416,7 @@ token(#state{auth = undefined}) ->
 token(#state{auth = #auth{token = undefined}}) ->
     undefined;
 
-token(#state{auth = #auth{token = Token}}) ->
+token(#state{auth = #auth{token = Token}}) when is_binary(Token) ->
     {ok, Token}.
 
 
