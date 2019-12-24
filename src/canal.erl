@@ -410,15 +410,10 @@ req_type(RequestId, #state{requests = Requests}) ->
 
 -spec token(state()) -> {ok, binary()} | undefined.
 
-token(#state{auth = undefined}) ->
-    undefined;
-
-token(#state{auth = #auth{token = undefined}}) ->
-    undefined;
-
 token(#state{auth = #auth{token = Token}}) when is_binary(Token) ->
-    {ok, Token}.
+    {ok, Token};
 
+token(_) -> undefined.
 
 -spec update_auth(state(), map(), {string(), binary()} | undefined) ->
     state().
