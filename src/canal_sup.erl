@@ -11,10 +11,14 @@
 
 %% public
 
--spec start_link() -> {ok, pid()}.
+-spec start_link() -> {ok, pid()} | {error, term()}.
 
 start_link() ->
-    supervisor:start_link({local, ?SERVER}, ?MODULE, []).
+    case supervisor:start_link({local, ?SERVER}, ?MODULE, []) of
+        {ok, _} = OK -> OK;
+        ignore -> {error, ignore};
+        {error, _} = E -> E
+    end.
 
 
 %% callbacks
