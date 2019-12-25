@@ -13,5 +13,5 @@
 % types
 
 -type req_id()  :: httpc:request_id().
--type req() :: {{pid(), reference()}, write | read}.
+-type req() :: {{pid(), reference()}, write | read, binary()}.
 -type auth_method() :: {approle | ldap, binary(), binary()}.

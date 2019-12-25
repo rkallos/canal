@@ -33,6 +33,7 @@
 
 -record(state, {
     auth            = undefined                   :: auth() | undefined,
+    cache           = #{}                         :: #{binary() => binary()},
     request_timeout = undefined                   :: non_neg_integer(),
     requests        = #{}                         :: #{req_id() => req()},
     url             = undefined                   :: binary()
@@ -111,7 +112,7 @@ handle_call({read, Key}, From, State) ->
     Request = {Url, Headers},
     {ok, ReqId} = httpc:request(get, Request, HttpOpts, Opts),
 
-    {noreply, add_request(ReqId, {From, read}, State)};
+    {noreply, add_request(ReqId, {From, read, Key}, State)};
 
 handle_call({write, Key, Body}, From, State) ->
     Headers = headers(State),
@@ -121,7 +122,7 @@ handle_call({write, Key, Body}, From, State) ->
     Request = {Url, Headers, ?JSON, Body},
     {ok, ReqId} = httpc:request(post, Request, HttpOpts, Opts),
 
-    {noreply, add_request(ReqId, {From, write}, State)}.
+    {noreply, add_request(ReqId, {From, write, Key}, State)}.
 
 
 -spec handle_cast(_, state()) -> {noreply, state()}.
@@ -303,16 +304,33 @@ do_lookup2(Token, Body, State) ->
 
 
 handle_read_response(
-    {RequestId, {{_, StatusCode, _}, _, Reply}},
-    State = #state{requests = Requests}) ->
+        {RequestId, {{_, StatusCode, _}, _, Reply}},
+        State = #state{cache = Cache, requests = Requests}
+    ) ->
 
-    #{RequestId := {From, read}} = Requests,
+    #{RequestId := {From, read, Key}} = Requests,
     Reply2 = ?DECODE(Reply),
-    Ret = case Reply2 of
-        #{<<"data">> := Data} -> {ok, Data};
-        #{<<"errors">> := Err} -> {error, {StatusCode, Err}}
+    {Ret, State2} = case Reply2 of
+        #{<<"data">> := Data} ->
+            {{ok, Data}, State#state{cache = Cache#{Key => Data}}};
+        #{<<"errors">> := Err} ->
+            {{error, {StatusCode, Err}}, State}
     end,
+    gen_server:reply(From, Ret),
+    {noreply, del_request(RequestId, State2)};
 
+handle_read_response(
+        {RequestId, Err},
+        State = #state{cache = Cache, requests = Requests}
+    ) ->
+    #{RequestId := {From, read, Key}} = Requests,
+    Ret = case Cache of
+        #{Key := Data} ->
+            canal_utils:info_msg(
+                "no response; sending key ~p from cache", [Key]),
+            {ok, Data};
+        _ -> Err
+    end,
     gen_server:reply(From, Ret),
     {noreply, del_request(RequestId, State)}.
 
@@ -382,7 +400,7 @@ opts(Sync, Timeout) ->
 
 req_origin(RequestId, #state{requests = Requests}) ->
     case Requests of
-        #{RequestId := {From, _Type}} ->
+        #{RequestId := {From, _Type, _Key}} ->
             From;
         _ ->
             undefined
@@ -399,7 +417,7 @@ req_timeout(#state{request_timeout = Timeout}) ->
 
 req_type(RequestId, #state{requests = Requests}) ->
     case Requests of
-        #{RequestId := {_, Type}} ->
+        #{RequestId := {_, Type, _}} ->
             Type;
         #{RequestId := _} ->
             undefined;
