@@ -12,7 +12,8 @@ canal_test_() ->
     [
         fun auth_subtest/0,
         fun read_subtest/0,
-        fun write_subtest/0
+        fun write_subtest/0,
+        fun cache_subtest/0
     ]}.
 
 %% tests
@@ -31,6 +32,13 @@ read_subtest() ->
 write_subtest() ->
     ok = canal:auth({approle, <<"bob_the_token">>, <<"bob_the_secret">>}),
     ok = canal:write(<<"foo">>, <<"bar">>),
+    {ok, #{<<"value">> := <<"bar">>}} = canal:read(<<"foo">>).
+
+cache_subtest() ->
+    ok = canal:auth({approle, <<"bob_the_token">>, <<"bob_the_secret">>}),
+    ok = canal:write(<<"foo">>, <<"bar">>),
+    {ok, #{<<"value">> := <<"bar">>}} = canal:read(<<"foo">>),
+    canal_http_server:stop(),
     {ok, #{<<"value">> := <<"bar">>}} = canal:read(<<"foo">>).
 
 
