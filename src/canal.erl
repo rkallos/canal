@@ -395,7 +395,7 @@ req_timeout(#state{request_timeout = Timeout}) ->
     Timeout.
 
 
--spec req_type(req_id(), state()) -> lookup | read | write | undefined.
+-spec req_type(req_id(), state()) -> read | write | undefined.
 
 req_type(RequestId, #state{requests = Requests}) ->
     case Requests of
