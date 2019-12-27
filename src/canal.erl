@@ -357,7 +357,7 @@ make_auth_request({ldap, Username, Password}, State) ->
     {Url, Body}.
 
 
--spec make_auth_request2(string(), #{binary() => binary()}, state()) ->
+-spec make_auth_request2(iolist(), #{binary() => binary()}, state()) ->
     {string(), binary()}.
 
 make_auth_request2(AuthMethod, Map, State) ->
@@ -410,15 +410,10 @@ req_type(RequestId, #state{requests = Requests}) ->
 
 -spec token(state()) -> {ok, binary()} | undefined.
 
-token(#state{auth = undefined}) ->
-    undefined;
+token(#state{auth = #auth{token = Token}}) when is_binary(Token) ->
+    {ok, Token};
 
-token(#state{auth = #auth{token = undefined}}) ->
-    undefined;
-
-token(#state{auth = #auth{token = Token}}) ->
-    {ok, Token}.
-
+token(_) -> undefined.
 
 -spec update_auth(state(), map(), {string(), binary()} | undefined) ->
     state().
@@ -434,7 +429,9 @@ update_auth(State, Data, Payload) ->
         token = Token,
         ttl = Ttl
     },
-    ReauthTime = floor(Ttl * 0.9),
+    ReauthTime = case floor(Ttl * 0.9) of
+        N when N >= 0 -> N
+    end,
     {Megas, Seconds, _Micros} = erlang:timestamp(),
     TimeAtReauth = {Megas, Seconds + ReauthTime, 0},
     DatetimeAtReauth = calendar:now_to_local_time(TimeAtReauth),

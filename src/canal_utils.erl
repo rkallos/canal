@@ -12,17 +12,18 @@
 ]).
 
 
--spec error_msg(io:format()) -> ok.
+-spec error_msg(string()) -> ok.
 
 error_msg(Msg) ->
     error_logger:error_msg(Msg).
 
 
--spec error_msg(io:format(), list()) -> ok.
+-spec error_msg(string(), list()) -> ok.
 
 error_msg(Format, Args) ->
     Msg = io_lib:format(Format, Args),
-    error_logger:error_msg(Msg).
+    Msg2 = lists:flatten(Msg),
+    error_logger:error_msg(Msg2).
 
 
 -spec getopt(atom()) -> term().
@@ -52,30 +53,32 @@ getopt(url) ->
     ])).
 
 
--spec info_msg(io:format()) -> ok.
+-spec info_msg(string()) -> ok.
 
 info_msg(Msg) ->
     error_logger:info_msg(Msg).
 
 
--spec info_msg(io:format(), list()) -> ok.
+-spec info_msg(string(), list()) -> ok.
 
 info_msg(Format, Args) ->
     Msg = io_lib:format(Format, Args),
-    error_logger:info_msg(Msg).
+    Msg2 = lists:flatten(Msg),
+    error_logger:info_msg(Msg2).
 
 
--spec warning_msg(io:format()) -> ok.
+-spec warning_msg(string()) -> ok.
 
 warning_msg(Msg) ->
     error_logger:warning_msg(Msg).
 
 
--spec warning_msg(io:format(), list()) -> ok.
+-spec warning_msg(string(), list()) -> ok.
 
 warning_msg(Format, Args) ->
     Msg = io_lib:format(Format, Args),
-    error_logger:warning_msg(Msg).
+    Msg2 = lists:flatten(Msg),
+    error_logger:warning_msg(Msg2).
 
 
 %% private

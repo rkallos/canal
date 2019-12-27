@@ -29,7 +29,8 @@ stop() ->
 
 %% callbacks
 
--spec start(application:start_type(), term()) -> {ok, pid()}.
+-spec start(application:start_type(), term()) ->
+    {ok, pid()} | {error, term()}.
 
 start(_StartType, _StartArgs) ->
     canal_sup:start_link().
