@@ -13,7 +13,7 @@
   {env,[]},
   {modules, []},
 
-  {maintainers, []},
+  {maintainers, ["Richard Kallos"]},
   {licenses, ["Apache 2.0"]},
-  {links, []}
+  {links, ["https://github.com/rkallos/canal"]}
  ]}.
