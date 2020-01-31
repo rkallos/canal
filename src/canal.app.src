@@ -1,17 +1,10 @@
-{application, canal,
- [{description, "Hashicorp Vault client written in Erlang"},
-  {vsn, "0.4.2"},
-  {registered, []},
-  {mod, {canal_app, []}},
-  {applications,
-   [kernel,
-    stdlib,
-    inets,
-    jiffy,
-    ssl
-   ]},
-  {env,[]},
-  {modules, []},
-  {licenses, ["Apache 2.0"]},
-  {links, [{"Github", "https://github.com/rkallos/canal"}]}
- ]}.
+{application,canal,
+             [{description,"Hashicorp Vault client written in Erlang"},
+              {vsn,"0.4.2"},
+              {registered,[]},
+              {mod,{canal_app,[]}},
+              {applications,[kernel,stdlib,inets,jiffy,ssl]},
+              {env,[]},
+              {modules,[]},
+              {licenses,["Apache 2.0"]},
+              {links,[{"Github","https://github.com/rkallos/canal"}]}]}.
