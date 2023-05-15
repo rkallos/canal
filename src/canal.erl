@@ -54,6 +54,10 @@ auth(Creds = {approle, _Id, _SecretId}) ->
 
 auth(Creds = {ldap, _Username, _Password}) ->
     application:set_env(?APP, credentials, Creds, [{persistent, true}]),
+    gen_server:call(?MODULE, {auth, Creds});
+
+auth(Creds = {kubernetes, _Role, _Jwt}) ->
+    application:set_env(?APP, credentials, Creds, [{persistent, true}]),
     gen_server:call(?MODULE, {auth, Creds}).
 
 
@@ -372,7 +376,11 @@ make_auth_request({ldap, Username, Password}, State) ->
     Map = #{<<"password">> => Password},
     Url = url(State, ["/v1/auth/ldap/login/", Username]),
     Body = ?ENCODE(Map),
-    {Url, Body}.
+    {Url, Body};
+
+make_auth_request({kubernetes, Role, Jwt}, State) ->
+    Map = #{<<"role">> => Role, <<"jwt">> => Jwt},
+    make_auth_request2("kubernetes", Map, State).
 
 
 -spec make_auth_request2(iolist(), #{binary() => binary()}, state()) ->

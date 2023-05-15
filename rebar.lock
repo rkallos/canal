@@ -1,6 +1,8 @@
-{"1.1.0",
-[{<<"jiffy">>,{pkg,<<"jiffy">>,<<"0.15.2">>},0}]}.
+{"1.2.0",
+[{<<"jiffy">>,{pkg,<<"jiffy">>,<<"1.0.5">>},0}]}.
 [
 {pkg_hash,[
- {<<"jiffy">>, <<"DE266C390111FD4EA28B9302F0BC3D7472468F3B8E0ACEABFBEFA26D08CD73B7">>}]}
+ {<<"jiffy">>, <<"A69B58FAF7123534C20E1B0B7AE97AC52079CA02ED4B6989B4B380179CD63A54">>}]},
+{pkg_hash_ext,[
+ {<<"jiffy">>, <<"B617A53F46AE84F20D0C38951367DC947A2CF8CFF922AA5C6AC6B64B8B052289">>}]}
 ].
