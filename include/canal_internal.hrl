@@ -14,4 +14,4 @@
 
 -type req_id()  :: httpc:request_id().
 -type req() :: {{pid(), reference()}, write | read, binary()}.
--type auth_method() :: {approle | ldap, binary(), binary()}.
+-type auth_method() :: {approle | ldap | kubernetes, binary(), binary()}.

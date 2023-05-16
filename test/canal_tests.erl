@@ -10,7 +10,8 @@ canal_test_() ->
         fun () -> setup() end,
         fun (_) -> cleanup() end,
     [
-        fun auth_subtest/0,
+        fun auth_approle_subtest/0,
+        fun auth_kubernetes_subtest/0,
         fun read_subtest/0,
         fun write_subtest/0,
         fun cache_subtest/0
@@ -18,24 +19,30 @@ canal_test_() ->
 
 %% tests
 
-auth_subtest() ->
-    Creds = {approle, <<"bob_the_token">>, <<"bob_the_secret">>},
+auth_approle_subtest() ->
+    Creds = {approle, ?FIXTURE_APPROLE_ROLE, ?FIXTURE_APPROLE_SECRET},
+    ok = canal:auth(Creds),
+    Creds = ?GET_OPT(credentials).
+
+
+auth_kubernetes_subtest() ->
+    Creds = {kubernetes, ?FIXTURE_KUBERNETES_ROLE, ?FIXTURE_KUBERNETES_JWT},
     ok = canal:auth(Creds),
     Creds = ?GET_OPT(credentials).
 
 
 read_subtest() ->
-    ok = canal:auth({approle, <<"bob_the_token">>, <<"bob_the_secret">>}),
+    ok = canal:auth({approle, ?FIXTURE_APPROLE_ROLE, ?FIXTURE_APPROLE_SECRET}),
     {error, {404, []}} = canal:read(<<"foo">>).
 
 
 write_subtest() ->
-    ok = canal:auth({approle, <<"bob_the_token">>, <<"bob_the_secret">>}),
+    ok = canal:auth({approle, ?FIXTURE_APPROLE_ROLE, ?FIXTURE_APPROLE_SECRET}),
     ok = canal:write(<<"foo">>, <<"bar">>),
     {ok, #{<<"value">> := <<"bar">>}} = canal:read(<<"foo">>).
 
 cache_subtest() ->
-    ok = canal:auth({approle, <<"bob_the_token">>, <<"bob_the_secret">>}),
+    ok = canal:auth({approle, ?FIXTURE_APPROLE_ROLE, ?FIXTURE_APPROLE_SECRET}),
     ok = canal:write(<<"foo">>, <<"bar">>),
     {ok, #{<<"value">> := <<"bar">>}} = canal:read(<<"foo">>),
     canal_http_server:stop(),

@@ -36,7 +36,10 @@ init(Req, State) ->
             Split = binary:split(Path, <<"/">>, [global]),
             case lists:last(Split) of
                 <<"login">> ->
-                    handle_auth_req(Req, State)
+                    Method =
+                        binary_to_existing_atom(cowboy_req:binding(rest, Req)),
+                    {ok, ReqBody, _} = cowboy_req:read_body(Req),
+                    handle_auth_req(Req, Method, ?DECODE(ReqBody), State)
             end;
         {<<"GET">>, <<"secret">>} ->
             handle_read_req(Req, State);
@@ -47,7 +50,26 @@ init(Req, State) ->
 
 %% private
 
-handle_auth_req(Req, State) ->
+handle_auth_req(
+    Req,
+    kubernetes,
+    #{<<"role">> := ?FIXTURE_KUBERNETES_ROLE,
+      <<"jwt">> := ?FIXTURE_KUBERNETES_JWT},
+    State
+) ->
+    do_handle_auth(Req, State);
+
+handle_auth_req(
+    Req,
+    approle,
+    #{<<"role_id">> := ?FIXTURE_APPROLE_ROLE,
+      <<"secret_id">> := ?FIXTURE_APPROLE_SECRET},
+    State
+) ->
+    do_handle_auth(Req, State).
+
+
+do_handle_auth(Req, State) ->
     Body = ?ENCODE(#{auth => #{
         client_token => <<"bob_the_client_token">>,
         lease_duration => 600
